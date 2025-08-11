@@ -8,17 +8,11 @@ app.use(cors());
 app.use(express.json());
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o"; // fallback to gpt-4o if not set
 const PORT = process.env.PORT || 3000;
 
 if (!OPENAI_API_KEY) {
   console.error("⚠️ OPENAI_API_KEY not set.");
-  process.exit(1);
-}
-
-if (!ASSISTANT_ID) {
-  console.error("⚠️ ASSISTANT_ID not set.");
   process.exit(1);
 }
 
@@ -37,7 +31,6 @@ app.post("/ask-to-assistant", async (req, res) => {
     const input = `State: ${state}\n Scene: ${scene}`;
 
     const response = await client.responses.create({
-      // assistant_id: ASSISTANT_ID,
       model: MODEL,
       input,
     });
