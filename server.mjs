@@ -28,14 +28,42 @@ app.post("/ask-to-assistant", async (req, res) => {
   }
 
   try {
-    const input = `State: ${state}\n Scene: ${scene}`;
+    // const input = `State: ${state}\n Scene: ${scene}`;
 
-    const response = await client.responses.create({
+    // const response = await client.responses.create({
+    //   model: MODEL,
+    //   input,
+    // });
+
+    // const reply = response.output_text ?? "No reply received.";
+
+    const input = `
+      **"Given the following scene, return the top 3 most relevant ${state} criminal statutes. For each statute, provide the following details:
+        1. Statute number and title
+        2. Plain-English Summary (1–2 sentences)
+        3. Penalty description (1–2 sentences)**
+
+        Scene: ${scene}
+
+        Format the output like this:**
+
+        1 [Statute Number] - [Title]
+        • Plain-English Summary: [Text]
+        • Penalty: [Text]
+
+        Repeat for top 3 statutes."_
+    `;
+    const response = await client.chat.completions.create({
       model: MODEL,
-      input,
+      messages: [
+        {
+          role: "user",
+          content: input,
+        },
+      ],
     });
 
-    const reply = response.output_text ?? "No reply received.";
+    const reply = response.choices[0]?.message?.content ?? "No reply received.";
 
     res.json({ reply });
   } catch (err) {
