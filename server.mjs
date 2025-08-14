@@ -87,7 +87,7 @@ app.post("/ask-to-assistant", async (req, res) => {
       📌 Summary
       This Assistant supports ${state} police supervisors with jurisdiction-locked, accurate legal reference. It is a tool to guide and clarify—not to direct enforcement. All responses must be grounded in uploaded ${state} law and must reflect the standards of accountability, clarity, and professionalism Command Legacy is built on.
 
-      Given the following scene, return the top 3 most relevant ${state} criminal statutes. For each statute, provide the following details:
+      Given the following scene, return the most relevant ${state} criminal statutes. For each statute, provide the following details:
         1. Statute number and title
         2. Plain-English Summary (1–2 sentences)
         3. Penalty description (1–2 sentences)**
