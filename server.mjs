@@ -1,120 +1,89 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import OpenAI from "openai";
+import OpenAI from "openai"; // Make sure your SDK is up-to-date!
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const MODEL = process.env.OPENAI_MODEL || "gpt-4o"; // fallback to gpt-4o if not set
+const ASSISTANT_ID = process.env.ASSISTANT_ID; // your custom Assistant ID
 const PORT = process.env.PORT || 3000;
 
-if (!OPENAI_API_KEY) {
-  console.error("⚠️ OPENAI_API_KEY not set.");
+if (!OPENAI_API_KEY || !ASSISTANT_ID) {
+  console.error("⚠️ OPENAI_API_KEY or ASSISTANT_ID not set in environment.");
   process.exit(1);
 }
 
-const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+async function waitForRunCompletion(threadId, runId) {
+  let run;
+  while (true) {
+    run = await openai.assistants.threads.runs.get({
+      thread_id: threadId,
+      run_id: runId,
+    }); // v2 method
+    if (run.status === "completed") {
+      return run;
+    }
+    if (["failed", "cancelled", "expired"].includes(run.status)) {
+      throw new Error(`Run failed with status: ${run.status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
 
 app.post("/ask-to-assistant", async (req, res) => {
-  const { state, scene } = req.body;
+  const { scene } = req.body;
 
-  if (!state || !scene) {
-    return res
-      .status(400)
-      .json({ error: "Missing 'state' or 'scene' in request body." });
+  if (!scene) {
+    return res.status(400).json({ error: "Missing 'scene' in request body." });
   }
 
   try {
-    const system_prompt = `
-      **"
-      This Assistant serves as a real-time legal reference tool for first-line police supervisors in ${state}—including corporals, sergeants, and field training officers (FTOs). It analyzes scene descriptions submitted by police officers and returns applicable criminal statutes and penalties, strictly from vetted ${state} legal sources.
-
-      ✅ What This Assistant Must Do
-      1. Interpret Plain-Language Scene Descriptions
-      Analyze descriptions of incidents. You are generating for a police officer.
-      Identify the most relevant statute(s) from ${state}’s criminal code
-
-      2. Stay Jurisdiction-Specific
-      Only use ${state} laws
-      Do not reference or compare laws from other states or federal code unless those laws are included in the uploaded ${state} files
-
-      3. Use Only Uploaded Legal Materials
-      All answers must come from the uploaded ${state} Criminal Law PDF, ${state} Law Digest, or other department-approved MD documents
-      Never use online sources or assumptions
-
-      4. Provide Structured Responses
-      For each statute, include:
-      Statute Number and Title (e.g., “CR § 3-803 – Harassment”)
-      -Brief, plain-English summary
-      -Penalty
-      -Charging notes, if applicable (e.g., prior warning required)
-
-      5. Ask Clarifying Questions
-      If multiple statutes might apply or more context is needed, ask a follow-up like:
-      “Did the suspect re-enter the property after being told to leave?”
-      “Was the weapon concealed or openly carried?”
-      “Was the victim known to the suspect?”
-
-      6. Use Clear, Concise Language
-      Responses should be professional, field-ready, and easy to drop into reports
-
-      7. Always Lead With This Disclaimer
-
-      This response is for informational purposes only and does not constitute legal advice. Users should always consult their department’s legal advisor or command staff before making enforcement or legal decisions.
-
-
-      ❌  What This Assistant Must Avoid
-      1. Mixing Jurisdictions
-      Never cite laws from other states or the federal code
-
-      2. Guessing or Overreaching
-      If no clear statute applies, respond with:
-      “Based on the uploaded ${state} materials, I cannot confidently identify a specific statute. Please consult your legal advisor or supervisor.”
-
-      3. Providing Legal or Tactical Advice
-      Do not recommend charges, arrest methods, or investigative actions
-
-      4. Recommending Use-of-Force or Safety Tactics
-      This Assistant should not advise on tactical decisions or officer safety
-
-      5. Web Searching
-      Never browse or reference the internet
-
-      📌 Summary
-      This Assistant supports ${state} police supervisors with jurisdiction-locked, accurate legal reference. It is a tool to guide and clarify—not to direct enforcement. All responses must be grounded in uploaded ${state} law and must reflect the standards of accountability, clarity, and professionalism Command Legacy is built on.
-
-      Given the following scene by user, return the most relevant ${state} criminal statutes. For each statute, provide the following details:
-        Statute number and title
-        Plain-English Summary 
-        Penalty description
-    `;
-    const input = `State: ${state} \n Scene: ${scene}`;
-    const response = await client.chat.completions.create({
-      model: MODEL,
-      temperature: 1.0,
-      top_p: 1.0,
-      messages: [
-        {
-          role: "system",
-          content: system_prompt,
-        },
-        {
-          role: "user",
-          content: input,
-        },
-      ],
+    // 1. Create a thread (v2)
+    const thread = await openai.assistants.threads.create({
+      assistant_id: ASSISTANT_ID,
     });
 
-    const reply = response.choices[0]?.message?.content ?? "No reply received.";
+    // 2. Add user message to thread (v2)
+    await openai.assistants.threads.messages.create({
+      thread_id: thread.id,
+      role: "user",
+      content: `Scene: ${scene}`,
+    });
 
-    res.json({ reply });
-  } catch (err) {
-    console.error("❌ Assistant error:", err);
+    // 3. Run the Assistant (v2)
+    const run = await openai.assistants.threads.runs.create({
+      thread_id: thread.id,
+      assistant_id: ASSISTANT_ID,
+    });
+
+    // 4. Wait for completion (v2)
+    await waitForRunCompletion(thread.id, run.id);
+
+    // 5. Get the assistant's reply (v2)
+    const messages = await openai.assistants.threads.messages.list({
+      thread_id: thread.id,
+    });
+
+    // 6. Extract assistant reply (v2 assumes message.content is present)
+    const assistantReply = messages.data
+      .filter((msg) => msg.role === "assistant")
+      .map((msg) =>
+        Array.isArray(msg.content)
+          ? msg.content.map((part) => part?.text?.value ?? "").join("\n")
+          : msg.content?.text?.value ?? ""
+      )
+      .join("\n");
+
+    res.json({ reply: assistantReply });
+  } catch (error) {
+    console.error("❌ Assistant error:", error);
     res.status(500).json({
-      error: err?.error?.message || err?.message || "Something went wrong.",
+      error: error?.error?.message || error?.message || "Something went wrong.",
     });
   }
 });
@@ -123,4 +92,6 @@ app.get("/", (req, res) => {
   res.send("🟢 Assistant server is running.");
 });
 
-app.listen(PORT, () => console.log(`🟢 Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🟢 Server running on http://localhost:${PORT}`)
+);
