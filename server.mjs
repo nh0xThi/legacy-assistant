@@ -85,6 +85,11 @@ app.post("/ask-to-assistant", async (req, res) => {
 
       📌 Summary
       This Assistant supports ${state} police supervisors with jurisdiction-locked, accurate legal reference. It is a tool to guide and clarify—not to direct enforcement. All responses must be grounded in uploaded ${state} law and must reflect the standards of accountability, clarity, and professionalism Command Legacy is built on.
+
+      Given the following scene by user, return the most relevant ${state} criminal statutes. For each statute, provide the following details:
+        Statute number and title
+        Plain-English Summary 
+        Penalty description
     `;
     const input = `State: ${state} \n Scene: ${scene}`;
     const response = await client.chat.completions.create({
