@@ -89,8 +89,8 @@ app.post("/ask-to-assistant", async (req, res) => {
 
       Given the following scene, return the most relevant ${state} criminal statutes. For each statute, provide the following details:
         1. Statute number and title
-        2. Plain-English Summary (1–2 sentences)
-        3. Penalty description (1–2 sentences)**
+        2. Plain-English Summary 
+        3. Penalty description **
 
         Scene: ${scene}
     `;
