@@ -155,5 +155,5 @@ app.get("/messages", async (req, res) => {
 // ---- start ------------------------------------------------------------
 
 app.listen(PORT, () => {
-  console.log(`🟢 Server running on http://localhost:${PORT}`);
+  console.log(`🟢 Server running on port ${PORT}`);
 });
